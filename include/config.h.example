@@ -1,0 +1,12 @@
+#ifndef CONFIG_H
+#define CONFIG_H
+
+#define LOCAL_IP   "127.0.0.1"
+#define LOCAL_PORT 9191
+
+#define PEER_IP    "127.0.0.1"
+#define PEER_PORT  9191
+
+#define MY_KEY     "CHANGE_ME"
+
+#endif
