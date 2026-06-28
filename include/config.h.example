@@ -1,12 +1,28 @@
 #ifndef CONFIG_H
 #define CONFIG_H
 
-#define LOCAL_IP   "127.0.0.1"
-#define LOCAL_PORT 9191
+// buffer size
+#define MBS 2048
 
-#define PEER_IP    "127.0.0.1"
-#define PEER_PORT  9191
+//magic header
+#define MAGIC_HEADER  "YOUR_HEADER"
 
-#define MY_KEY     "CHANGE_ME"
+//udp
+#define LOCAL_IP      "ip"
+#define LOCAL_PORT     port
+
+#define PEER_IP       "ip"
+#define PEER_PORT     port
+
+//crypto
+#define MY_KEY       "YOUR_KEY"
+
+//tun
+#define TUN_NAME "tun0"
+#define TUN_IP "tun_ip"
+#define TUN_PREFIX 24
+
+//event_loop
+#define MAX_EVENTS 10
 
 #endif

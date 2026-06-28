@@ -4,8 +4,9 @@
 #include <arpa/inet.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
+#include "config.h"
 
-#define BUF_SIZE 1000
+#define BUF_SIZE MBS
 
 int s_fd;
 struct sockaddr_in sv;
