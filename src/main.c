@@ -1,37 +1,50 @@
 #include "udp.h"
 #include "config.h"
 #include "tun.h"
+#include "event_loop.h" 
+#include <sys/epoll.h>
 
 int main()
 {
-    udp_init(LOCAL_IP, LOCAL_PORT, PEER_IP, PEER_PORT); 
-
-    unsigned char *msg = "hello"; 
-    send_udp_msg(msg, sizeof(msg)); 
-
-    printf("Sent UDP message: %s\n", (char *)msg); 
-
-    unsigned char rec[1000]; 
-    struct sockaddr_in ts; 
-    memset(&ts, 0, sizeof(ts)); 
-    receive_udp_msg(rec, &ts); 
-
-    printf("Received UDP message: %s\n\n", (char *)rec); 
+    int udp_fd = udp_init(LOCAL_IP, LOCAL_PORT, PEER_IP, PEER_PORT); 
 
     int tun_fd = tun_init(); 
     tun_config(); 
 
+
+    struct epoll_event events[MAX_EVENTS]; 
+    int epfd = epoll_init(); 
+    epoll_register(epfd, tun_fd); 
+    epoll_register(epfd, udp_fd); 
+
     while(1){
-        unsigned char tun_buffer[1000]; 
-        ssize_t n = tun_read(tun_buffer, tun_fd, 1000); 
-        
-        if((tun_buffer[0] >> 4) != 4) continue;
+        int n = epoll_wait(epfd, events, MAX_EVENTS, -1); 
 
-        const struct iphdr *ip = parse_tun_buffer(tun_buffer, n);
+        if (n < 0) {
+            perror("epoll_wait");
+            continue;
+        }
 
-        printf("Read %d Bytes from Tun:\n", n); 
-        printf("%d\n\n", ip->protocol); 
+        short tun_ready = 0, udp_ready = 0; 
+
+        for(int i = 0; i < n; i++){
+            if(events[i].data.fd == udp_fd) udp_ready = 1;
+            if(events[i].data.fd == tun_fd) tun_ready = 1;
+        }
+
+        if(tun_ready){
+            // do it's thing
+        }
+
+        if(udp_ready){
+            // do it's thing
+        }
+
     }
 
+    close(epfd); 
+    udp_clean(); 
+    tun_close(tun_fd); 
+    
     return 0;
 }

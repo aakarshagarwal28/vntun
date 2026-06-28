@@ -40,7 +40,7 @@ int udp_init(char *IPAD, int PRT, char *sndIP, int sndPRT)
     printf("Established Receive On : %s:%d\n", IPAD, PRT);
     printf("Established Send To    : %s:%d\n", sndIP, sndPRT);
 
-    return 0;
+    return s_fd;
 }
 
 ssize_t receive_udp_msg(unsigned char *msg,
