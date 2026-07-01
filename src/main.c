@@ -6,6 +6,7 @@
 #include "event_loop.h"
 #include "crypto.h"
 #include "header.h"
+#include "visualizer.h"
 #include<string.h>
 #include <sys/epoll.h>
 
@@ -26,21 +27,19 @@ int handle_tun_event(){
         return -1;
     }
 
-    printf("\n[TUN] Read %zd bytes from tun\n\n", n);
+    visualizer_packet_begin("TUN -> UDP");
 
     /*
     check if IPv4 only
     check if destination is 10.99.0.2 otherwise reject it for now.
     */
     if((tun_buffer[0] >> 4) != 4){
-        printf("[DROP] Not an IPv4 packet\n\n");
         return -1;
     }
 
     const struct iphdr *ip = parse_tun_buffer(tun_buffer, n);
 
     if(ip == NULL){
-        printf("[DROP] Failed to parse IPv4 header\n\n");
         return -1;
     }
 
@@ -51,10 +50,13 @@ int handle_tun_event(){
         return -1;
     }
 
-    printf("[IPv4] Destination Address : %s\n\n", dst);
+    visualizer_show_ipv4(ip, tun_buffer, n);
+    visualizer_show_raw(tun_buffer, n, "Raw Packet");
 
     if(strcmp(dst, "10.99.0.2") != 0){
-        printf("[DROP] Destination not handled by VPN\n\n");
+        printf("Destination rejected\n\n");
+
+
         return -1;
     }
 
@@ -65,11 +67,15 @@ int handle_tun_event(){
     */
     unsigned char enc[MBS];
 
+    visualizer_show_encryption_start(n);
+
     encrypt(tun_buffer, n, enc);
 
-    printf("[CRYPTO] Encrypted %zd bytes\n\n", n);
+    visualizer_show_encryption_done(enc, n);
 
     unsigned char payload[n + 8];
+
+    visualizer_show_header((const unsigned char *)MAGIC_HEADER, 8);
 
     ssize_t n1 = attach_header(enc, n, payload);
 
@@ -78,20 +84,19 @@ int handle_tun_event(){
         return -1;
     }
 
-    printf("[HEADER] Attached VPN header\n");
-    printf("[HEADER] Final UDP payload size : %zd bytes\n\n", n1);
+    visualizer_show_payload(n1);
 
     /*
     fire the udp packet to PEER IP, PEER PORT
     */
 
-    printf("[UDP] Sending packet...\n\n");
+    visualizer_show_udp_send(PEER_IP, PEER_PORT);
 
     if(send_udp_msg(payload, n1) < 0){
         return -1;
     }
 
-    printf("[UDP] Packet sent successfully\n\n");
+    visualizer_show_udp_sent();
 
     return 0;
 }
@@ -109,11 +114,12 @@ int handle_udp_event(){
     ssize_t n1 = receive_udp_msg(payload, &client_info);
 
     if(n1 <= 8){
-        printf("[DROP] UDP packet too small\n\n");
+        visualizer_packet_begin("UDP -> TUN");
         return -1;
     }
 
-    printf("\n[UDP] Received %zd bytes\n\n", n1);
+    visualizer_packet_begin("UDP -> TUN");
+    visualizer_show_udp_receive(inet_ntoa(client_info.sin_addr), ntohs(client_info.sin_port), n1);
 
     /*
     match the header otherwise reject it
@@ -121,36 +127,37 @@ int handle_udp_event(){
     decrypt the payload
     */
     if(memcmp(payload, MAGIC_HEADER, 8) != 0){
-        printf("[DROP] Invalid VPN header\n\n");
         return -1;
     }
 
-    printf("[HEADER] VPN header verified\n\n");
+    visualizer_show_header_verify(1);
 
     size_t n = n1 - 8;
 
     unsigned char enc[n];
 
+    visualizer_show_removing_header();
+
     memcpy(enc, payload + 8, n);
 
     unsigned char dec[n];
 
+    visualizer_show_decrypting();
+
     encrypt(enc, n, dec); // decrypt
 
-    printf("[CRYPTO] Decrypted %zu bytes\n\n", n);
+    visualizer_show_ipv4((const struct iphdr *)dec, dec, n);
 
     /*
     format it into a way that on reading to tun, kernel has no issues processing it
     we already ensured it!!
     */
 
-    printf("[TUN] Writing packet back to kernel...\n\n");
-
     if(tun_write(dec, tun_fd, n) < 0){
         return -1;
     }
 
-    printf("[TUN] Successfully injected %zu bytes\n\n", n);
+    visualizer_show_kernel_injection();
 
     return 0;
 }
@@ -169,9 +176,8 @@ int main()
     epoll_register(epfd, tun_fd);
     epoll_register(epfd, udp_fd);
 
-    printf("\n=========================================\n");
-    printf("        VNTUN Event Loop Started\n");
-    printf("=========================================\n\n");
+    visualizer_banner();    
+    visualizer_show_startup_info(LOCAL_IP, LOCAL_PORT, PEER_IP, PEER_PORT, TUN_NAME, TUN_IP);
 
     while(1){
 
@@ -190,12 +196,10 @@ int main()
         }
 
         if(tun_ready){
-            printf("========== TUN EVENT ==========\n\n");
             handle_tun_event();
         }
 
         if(udp_ready){
-            printf("========== UDP EVENT ==========\n\n");
             handle_udp_event();
         }
 
